@@ -22,6 +22,7 @@ public class SuperHotMod implements ModInitializer {
 
     private static final double MOVE_THRESHOLD = 0.01;
     private static final float LOOK_THRESHOLD = 1.5f;
+    private boolean wasMoving = true;
 
     @Override
     public void onInitialize() {
@@ -54,6 +55,24 @@ public class SuperHotMod implements ModInitializer {
             lastYaw.put(id, yaw);
         }
 
+        // Тільки при зміні стану — запускаємо gamerule
+        if (anyPlayerMoving != wasMoving) {
+            String val = anyPlayerMoving ? "true" : "false";
+            server.getCommands().performPrefixedCommand(
+                server.createCommandSourceStack().withSuppressedOutput(),
+                "gamerule doDaylightCycle " + val
+            );
+            server.getCommands().performPrefixedCommand(
+                server.createCommandSourceStack().withSuppressedOutput(),
+                "gamerule doWeatherCycle " + val
+            );
+            server.getCommands().performPrefixedCommand(
+                server.createCommandSourceStack().withSuppressedOutput(),
+                "gamerule doMobSpawning " + val
+            );
+            wasMoving = anyPlayerMoving;
+        }
+
         for (var level : server.getAllLevels()) {
             for (Entity entity : level.getAllEntities()) {
                 if (entity instanceof ServerPlayer) continue;
@@ -69,13 +88,6 @@ public class SuperHotMod implements ModInitializer {
                     entity.setNoGravity(false);
                 }
             }
-
-            // Зупиняємо/запускаємо час і погоду через gamerule
-            level.serverLevelData.setDayTime(
-                anyPlayerMoving
-                    ? level.getDayTime() + 1
-                    : level.getDayTime()
-            );
         }
     }
 }
