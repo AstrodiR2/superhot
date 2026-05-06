@@ -3,9 +3,9 @@ package ua.superhot;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.entity.Entity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +17,7 @@ public class SuperHotMod implements ModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("superhot");
 
-    private final Map<UUID, Vec3d> lastPositions = new HashMap<>();
+    private final Map<UUID, Vec3> lastPositions = new HashMap<>();
     private final Map<UUID, Float> lastYaw = new HashMap<>();
 
     private static final double MOVE_THRESHOLD = 0.01;
@@ -30,58 +30,51 @@ public class SuperHotMod implements ModInitializer {
     }
 
     private void onServerTick(MinecraftServer server) {
-        for (var world : server.getWorlds()) {
-            boolean anyPlayerMoving = false;
+        boolean anyPlayerMoving = false;
 
-            for (ServerPlayerEntity player : world.getPlayers()) {
-                UUID id = player.getUuid();
-                Vec3d pos = player.getPos();
-                float yaw = player.getYaw();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            UUID id = player.getUUID();
+            Vec3 pos = player.position();
+            float yaw = player.getYRot();
 
-                Vec3d lastPos = lastPositions.get(id);
-                Float lastY = lastYaw.get(id);
+            Vec3 lastPos = lastPositions.get(id);
+            Float lastY = lastYaw.get(id);
 
-                if (lastPos != null && lastY != null) {
-                    double moved = pos.squaredDistanceTo(lastPos);
-                    float looked = Math.abs(yaw - lastY);
-                    if (moved > MOVE_THRESHOLD || looked > LOOK_THRESHOLD) {
-                        anyPlayerMoving = true;
-                    }
-                } else {
+            if (lastPos != null && lastY != null) {
+                double moved = pos.distanceToSqr(lastPos);
+                float looked = Math.abs(yaw - lastY);
+                if (moved > MOVE_THRESHOLD || looked > LOOK_THRESHOLD) {
                     anyPlayerMoving = true;
                 }
-
-                lastPositions.put(id, pos);
-                lastYaw.put(id, yaw);
+            } else {
+                anyPlayerMoving = true;
             }
 
-            for (Entity entity : world.iterateEntities()) {
-                if (entity instanceof ServerPlayerEntity) continue;
+            lastPositions.put(id, pos);
+            lastYaw.put(id, yaw);
+        }
+
+        for (var level : server.getAllLevels()) {
+            for (Entity entity : level.getAllEntities()) {
+                if (entity instanceof ServerPlayer) continue;
 
                 if (!anyPlayerMoving) {
-                    entity.setFrozenTicks(Integer.MAX_VALUE);
-                    entity.setVelocity(Vec3d.ZERO);
+                    entity.setTicksFrozen(Integer.MAX_VALUE);
+                    entity.setDeltaMovement(Vec3.ZERO);
                     entity.setNoGravity(true);
                 } else {
-                    if (entity.getFrozenTicks() > 0) {
-                        entity.setFrozenTicks(0);
+                    if (entity.getTicksFrozen() > 0) {
+                        entity.setTicksFrozen(0);
                     }
                     entity.setNoGravity(false);
                 }
             }
 
-            boolean finalAnyMoving = anyPlayerMoving;
-            server.getCommandManager().executeWithPrefix(
-                server.getCommandSource().withSilent(),
-                "gamerule doDaylightCycle " + finalAnyMoving
-            );
-            server.getCommandManager().executeWithPrefix(
-                server.getCommandSource().withSilent(),
-                "gamerule doWeatherCycle " + finalAnyMoving
-            );
-            server.getCommandManager().executeWithPrefix(
-                server.getCommandSource().withSilent(),
-                "gamerule doMobSpawning " + finalAnyMoving
+            // Зупиняємо/запускаємо час і погоду через gamerule
+            level.serverLevelData.setDayTime(
+                anyPlayerMoving
+                    ? level.getDayTime() + 1
+                    : level.getDayTime()
             );
         }
     }
