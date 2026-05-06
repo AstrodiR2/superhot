@@ -22,11 +22,8 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Generate gradle wrapper
-        run: gradle wrapper --gradle-version 9.1
-
       - name: Build mod
-        run: ./gradlew build
+        run: ./gradlew build -x wrapper
 
       - name: Upload mod JAR
         uses: actions/upload-artifact@v4
