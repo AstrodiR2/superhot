@@ -4,7 +4,6 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,39 +54,14 @@ public class SuperHotMod implements ModInitializer {
             lastYaw.put(id, yaw);
         }
 
-        // Тільки при зміні стану — запускаємо gamerule
         if (anyPlayerMoving != wasMoving) {
-            String val = anyPlayerMoving ? "true" : "false";
-            server.getCommands().performPrefixedCommand(
-                server.createCommandSourceStack().withSuppressedOutput(),
-                "gamerule doDaylightCycle " + val
-            );
-            server.getCommands().performPrefixedCommand(
-                server.createCommandSourceStack().withSuppressedOutput(),
-                "gamerule doWeatherCycle " + val
-            );
-            server.getCommands().performPrefixedCommand(
-                server.createCommandSourceStack().withSuppressedOutput(),
-                "gamerule doMobSpawning " + val
-            );
-            wasMoving = anyPlayerMoving;
-        }
-
-        for (var level : server.getAllLevels()) {
-            for (Entity entity : level.getAllEntities()) {
-                if (entity instanceof ServerPlayer) continue;
-
-                if (!anyPlayerMoving) {
-                    entity.setTicksFrozen(Integer.MAX_VALUE);
-                    entity.setDeltaMovement(Vec3.ZERO);
-                    entity.setNoGravity(true);
-                } else {
-                    if (entity.getTicksFrozen() > 0) {
-                        entity.setTicksFrozen(0);
-                    }
-                    entity.setNoGravity(false);
-                }
+            var src = server.createCommandSourceStack().withSuppressedOutput();
+            if (!anyPlayerMoving) {
+                server.getCommands().performPrefixedCommand(src, "tick freeze");
+            } else {
+                server.getCommands().performPrefixedCommand(src, "tick unfreeze");
             }
+            wasMoving = anyPlayerMoving;
         }
     }
 }
